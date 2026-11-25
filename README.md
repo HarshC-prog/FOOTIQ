@@ -1,93 +1,106 @@
-# FOOTIQ — ISL ticket booking, live match centre & stats (demo app)
+# FOOTIQ
 
-A complete, runnable implementation of the FOOTIQ wireframe: all seven screens, one connected demo journey,
-real seat locking, QR tickets, real-time match updates and role-based access.
+FOOTIQ is a self-contained demo of an Indian Super League (ISL) ticketing and match-centre app. Fans can browse fixtures, select seats, book up to six tickets, and view QR tickets. Operators can update live matches and validate tickets. Admins can manage the demo data and review sales reports.
 
-## Run it
+All teams, players, fixtures, results, and sales are fictional. Checkout is a demo and does not take payment. This app does not connect to a real match feed.
 
-Requires **Node.js 22.13 or newer** (https://nodejs.org). There is nothing to install — no `npm install`, no database server.
+## Requirements and start-up
 
-```bash
-cd footiq
+- Node.js 22.13 or newer (uses the built-in `node:sqlite` module)
+- No third-party packages or database server are required
+
+From the project directory, run:
+
+```sh
 npm start
-# → http://localhost:3000     (use PORT=8080 npm start to change the port)
 ```
 
-The first start creates `data/footiq.db` and fills it with sample (fictional) ISL data.
-`npm run reset` wipes it and re-seeds.
+Open <http://localhost:3000>. Set `PORT` to use a different port, for example `PORT=8080 npm start` (PowerShell: `$env:PORT=8080; npm start`).
 
-### Demo accounts
+On first start the app creates `data/footiq.db` and seeds it with sample data. Seeding only runs when the database has no users. To erase and recreate the sample database, stop the server, remove `data/footiq.db` and its SQLite sidecar files if present, then run `npm start` again. `npm run reset` runs the seed script, but does not erase an existing populated database; it will leave that database unchanged.
 
-| Role     | Email                  | Password      | Lands on            |
-|----------|------------------------|---------------|---------------------|
-| Fan      | fan@footiq.test        | fan123        | Home / My Tickets   |
-| Operator | operator@footiq.test   | operator123   | Match Operator      |
-| Admin    | admin@footiq.test      | admin123      | Admin Dashboard     |
+Set `FOOTIQ_DATA` to use a different directory for the SQLite database.
 
-Anyone can also create a fan account from **Login → Sign up**. (Admins can create operator/admin users.)
-The login page has one-click buttons to fill the demo credentials.
+## Demo accounts
 
-## The screens (wireframe → app)
+| Role | Email | Password | Main destination after login |
+|---|---|---|---|
+| Fan | `fan@footiq.test` | `fan123` | Home |
+| Operator | `operator@footiq.test` | `operator123` | Match Operator |
+| Admin | `admin@footiq.test` | `admin123` | Admin Dashboard |
 
-| # | Wireframe screen              | Route                    | Notes |
-|---|-------------------------------|--------------------------|-------|
-| 1 | Home                          | `#/`                     | Featured match, upcoming fixtures, live match card, booking entry point |
-| 2 | Matches / fixtures            | `#/matches`              | Upcoming / Live / Completed tabs, team filter, availability and "from ₹" price |
-| 3 | Seat selection & booking      | `#/book/:id` → `#/checkout/:id` | Clickable stadium map (4 stands), per-seat status from the database, price total, up to 6 seats |
-| 4 | Booking confirmation / tickets| `#/ticket/:ref`, `#/tickets` | Unique booking ID (`FTQ-2026-###`), scannable QR, print/PDF, cancel, history |
-| 5 | Live Match Centre & stats     | `#/live/:id`             | Score, ticking match clock, timeline, stat bars, commentary — updates instantly |
-| 6 | Match Operator dashboard      | `#/operator`             | Start/pause/finish, goals/cards/subs, commentary, team stats, undo, ticket validation |
-| 7 | Admin dashboard               | `#/admin`                | KPIs, CRUD for teams, players, fixtures, stadiums, stands (auto-generates seats), bookings, users & roles, sales analytics |
+Fans can also sign up from the login screen. New sign-ups receive the fan role. Admins can create users with any of the three roles. The login page includes buttons to fill in the demo credentials.
 
-Extra: `#/statistics` (league table computed from results) — linked from the home page footer cards.
+## App screens
 
-## Suggested presentation flow
+The interface is a client-side app using hash routes:
 
-1. Open **Home** as a fan → *Explore Matches* → **Book Now** on Mumbai City FC vs Mohun Bagan SG.
-2. Pick a seat (e.g. West Stand A3) → *Continue to Booking* → log in as the demo fan → *Confirm & Pay*.
-3. The **ticket** appears with its QR code.
-4. In a second window (or private tab) log in as **operator** → open the live match (Bengaluru FC vs Kerala Blasters).
-5. In a third window open **Live Match Centre** (`#/live/2`), then publish a goal from the operator window — the score, timeline and toast update immediately, with no refresh.
-6. Operator → *Ticket validation* → paste the QR text (or booking ID) → "Valid ticket — entry granted". Scanning it again says "Already used".
-7. Log in as **admin** → bookings, revenue and analytics have already moved.
+| Screen | Route | What it does |
+|---|---|---|
+| Home | `#/` | Featured upcoming match, upcoming fixtures, live fixtures, and links to the rest of the app |
+| Matches | `#/matches` | Browse upcoming, live, and completed fixtures; filter by team and view ticket availability and starting prices |
+| Seat selection | `#/book/:id` | View seat availability by stand and select up to six seats for an upcoming match |
+| Checkout | `#/checkout/:id` | Confirm the booking; no payment is collected |
+| Ticket | `#/ticket/:ref` | View the booking, QR code, and print-friendly ticket; cancel an eligible booking |
+| My Tickets | `#/tickets` | View your bookings and ticket status |
+| Live Match Centre | `#/live/:id` | View score, match clock, events, statistics, and commentary |
+| Statistics | `#/statistics` | View the table calculated from live and completed results and player event leaders |
+| Match Operator | `#/operator` | Start, pause, and finish matches; update events and stats; validate tickets |
+| Admin | `#/admin` and `#/admin/:tab` | Manage teams, players, fixtures, stadiums, stands, bookings, users, roles, and reports |
 
-Try the double-booking protection: open the same match in two browsers, select the same seat in both, and confirm in the second after the first has paid — the second user is told the seat was just taken and returned to the map.
+Booking and staff features require login. Only admins can open the admin area; operators and admins can use the operator dashboard and ticket validation.
 
-## What is actually enforced (not just drawn)
+## Try the demo
 
-- **Seat status lives in the database.** `booking_seats` has a partial unique index on `(match_id, seat_id) WHERE active = 1`, and each booking runs inside a `BEGIN IMMEDIATE` transaction, so two users can never hold the same seat — even if requests arrive simultaneously. Cancelling releases the seat.
-- **Role-based access** is checked on every API call (fan / operator / admin). Passwords are hashed with scrypt; sessions are random tokens.
-- **QR tickets** carry `bookingID.signature` (HMAC-SHA256 with a per-install secret), so forged codes are rejected. The QR encoder is built in (no libraries).
-- **Real-time updates** are pushed to every open browser (score, events, stats, clock, seat availability).
+1. Browse Matches as a fan and open an upcoming fixture, such as Mumbai City FC vs Mohun Bagan SG.
+2. Choose seats and continue to checkout. Log in as the demo fan if prompted, then confirm the demo booking.
+3. Open the ticket to see its booking reference and QR code. The ticket can be printed from the browser.
+4. Log in as the operator in another browser or private window. Open the live Bengaluru FC vs Kerala Blasters fixture and publish an event.
+5. Keep that fixture's Live Match Centre open to see updates arrive without refreshing.
+6. In the operator dashboard, validate the ticket using its QR text or booking reference. A successfully checked-in booking cannot be used again.
+7. Log in as the admin to inspect bookings and analytics or manage the sample data.
 
-## Deviations from the suggested tech stack — please read
+## What the implementation enforces
 
-The wireframe suggests React + TypeScript, Tailwind, Express, PostgreSQL, Socket.IO and Python. This build was produced in an environment
-with no package-registry access, so none of those could be installed. To still ship something that works the moment you unzip it, it uses:
+- **Seat availability and booking:** SQLite stores seats and active booking seats. A partial unique index prevents an active duplicate booking for the same seat and match. Booking is performed in a `BEGIN IMMEDIATE` transaction, and cancellation releases seats. A booking can include at most six seats.
+- **Authentication and roles:** Passwords are hashed with Node's `scrypt`; API routes check the user's fan, operator, or admin role. Sessions use random bearer tokens.
+- **Tickets:** QR payloads contain a booking reference and an HMAC-SHA256 signature based on a per-install secret stored in the database. Staff can validate signed QR payloads; for this demo they can also enter a plain booking reference. Successful check-in prevents repeat entry and cancellation.
+- **Live updates:** The server publishes match and seat changes over Server-Sent Events at `/api/stream`. Open clients receive match scores, events, stats, and seat availability updates.
+- **Reports and statistics:** Standings, player leaders, and admin sales summaries are calculated from the SQLite data.
 
-| Suggested             | What this app uses                                  | Same behaviour? |
-|-----------------------|-----------------------------------------------------|-----------------|
-| React + TypeScript    | Vanilla JS single-page app (`public/app.js`, `staff.js`) | Same seven screens |
-| Tailwind CSS          | Hand-written responsive CSS (`public/style.css`)    | Yes, works on phones |
-| Node + Express        | Node's built-in `http` with a small router (`src/server.js`) | Same REST design |
-| PostgreSQL            | SQLite via Node's built-in `node:sqlite` (`data/footiq.db`) | Same relational schema and constraints |
-| Socket.IO             | Server-Sent Events (`/api/stream`)                  | Same push updates |
-| Python analytics      | Analytics are SQL queries in the admin API          | Optional item skipped |
+## Implementation
 
-The schema (`src/db.js`) is plain relational SQL, so moving to PostgreSQL later is mostly a matter of swapping the driver and
-changing `INTEGER PRIMARY KEY` to `SERIAL`/identity columns, `datetime('now')` to `now()`, and the transaction call. Everything
-that matters for the booking guarantee (the partial unique index) also exists in PostgreSQL.
+The original concept suggested React, TypeScript, Tailwind, Express, PostgreSQL, Socket.IO, and Python analytics. This version uses built-in Node.js modules and browser JavaScript, so it has no package installation step.
+
+| Area | Implementation |
+|---|---|
+| Front end | Vanilla JavaScript single-page app in `public/app.js` and `public/staff.js`, with responsive styles in `public/style.css` |
+| HTTP server and API | Node.js built-in `http` module and a small router in `src/server.js` |
+| Database | SQLite through built-in `node:sqlite`; schema, password helpers, and seat generation are in `src/db.js` |
+| Live updates | Server-Sent Events (`/api/stream`) |
+| QR codes | Dependency-free encoder in `src/qr.js` |
+| Sample data | `src/seed.js` |
 
 ## Project layout
 
-```
-src/server.js   HTTP server, REST API, auth, booking, operator + admin endpoints, SSE
-src/db.js       Schema, transactions, password hashing
-src/seed.js     Sample teams, players, stadiums, matches, events, bookings
-src/qr.js       Dependency-free QR code generator
-public/         index.html, style.css, app.js (fan screens), staff.js (operator + admin)
-data/           SQLite database (created on first run)
+```text
+src/server.js   HTTP server, REST API, authentication, bookings, staff/admin routes, SSE
+src/db.js       SQLite schema, transactions, password hashing, seat generation
+src/seed.js     Fictional demo data and database seed script
+src/qr.js       QR code generator
+public/         Browser app, styles, and team logo assets
+data/           SQLite database created when the app starts
 ```
 
-All names, players, scores and sales figures are fictional sample data — this is not a real ISL match feed or ticketing system,
-and no real payments are taken.
+## Main API groups
+
+The browser app communicates with the local server through JSON endpoints:
+
+- Public: `/api/home`, `/api/matches`, `/api/standings`, `/api/player-leaders`
+- Authentication: `/api/auth/login`, `/api/auth/register`, `/api/auth/me`, `/api/auth/logout`
+- Seats and bookings: `/api/matches/:id/seats`, `/api/matches/:id/book`, `/api/bookings/*`
+- Operator: `/api/operator/*` and `/api/tickets/validate`
+- Admin: `/api/admin/*`
+- Live event stream: `/api/stream`
+
+This is a local demonstration system: it has no payment processing, real ticket inventory, or official ISL data feed.

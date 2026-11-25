@@ -1,0 +1,12 @@
+{
+  "name": "footiq",
+  "version": "1.0.0",
+  "description": "FOOTIQ – ISL ticket booking and live match centre demo app",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --no-warnings src/server.js",
+    "reset": "node --no-warnings src/seed.js"
+  },
+  "engines": { "node": ">=22.13.0" },
+  "license": "MIT"
+}
